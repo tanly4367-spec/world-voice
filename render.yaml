@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: world-voice
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python app.py --local
+    healthCheckPath: /config
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.10
+      - key: GRADIO_ANALYTICS_ENABLED
+        value: 'False'
