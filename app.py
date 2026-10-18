@@ -196,6 +196,46 @@ def localized_translate(text, source, target, slow, locale):
     status_index = 13 if sound else (14 if 'this language' in message else 15)
     return translated, sound, t[status_index]
 
+def browser_translation_complete(text, source, target, slow, locale, translated):
+    t = UI[locale]
+    if not (text or '').strip():
+        return '', None, t[16], ''
+    if len(text) > 3000:
+        return '', None, t[17], ''
+    if source not in LANGUAGES or target not in LANGUAGES:
+        return '', None, t[19], ''
+    if not isinstance(translated, str) or not translated.strip() or len(translated) > 20000:
+        return '', None, t[18], ''
+    sound = None
+    voice = {'iw': 'he'}.get(LANGUAGES[target], LANGUAGES[target])
+    if voice in VOICES:
+        try:
+            buffer = io.BytesIO()
+            gTTS(translated, lang=voice, slow=slow).write_to_fp(buffer)
+            sound = buffer.getvalue()
+        except Exception:
+            pass
+    index = 13 if sound else (14 if voice not in VOICES else 15)
+    return translated, sound, t[index], pronunciation_guide(translated, target, locale)
+
+BROWSER_TRANSLATE = """async (text, source, target, slow, locale, previous) => {
+    const codes = __LANGUAGE_CODES__;
+    let translated = '';
+    if (text && text.trim() && text.length <= 3000 && codes[source] && codes[target]) {
+        if (source === target) translated = text.trim();
+        else {
+            try {
+                const query = new URLSearchParams({client:'dict-chrome-ex', sl:codes[source], tl:codes[target], q:text.trim()});
+                const response = await fetch('https://clients5.google.com/translate_a/t?' + query, {signal:AbortSignal.timeout(25000)});
+                if (!response.ok) throw new Error('Translation unavailable');
+                const payload = await response.json();
+                if (Array.isArray(payload) && typeof payload[0] === 'string') translated = payload[0];
+            } catch (_) { translated = ''; }
+        }
+    }
+    return [text, source, target, slow, locale, translated];
+}""".replace('__LANGUAGE_CODES__', '{"afrikaans": "af", "albanian": "sq", "amharic": "am", "arabic": "ar", "armenian": "hy", "assamese": "as", "aymara": "ay", "azerbaijani": "az", "bambara": "bm", "basque": "eu", "belarusian": "be", "bengali": "bn", "bhojpuri": "bho", "bosnian": "bs", "bulgarian": "bg", "catalan": "ca", "cebuano": "ceb", "chichewa": "ny", "chinese (simplified)": "zh-CN", "chinese (traditional)": "zh-TW", "corsican": "co", "croatian": "hr", "czech": "cs", "danish": "da", "dhivehi": "dv", "dogri": "doi", "dutch": "nl", "english": "en", "esperanto": "eo", "estonian": "et", "ewe": "ee", "filipino": "tl", "finnish": "fi", "french": "fr", "frisian": "fy", "galician": "gl", "georgian": "ka", "german": "de", "greek": "el", "guarani": "gn", "gujarati": "gu", "haitian creole": "ht", "hausa": "ha", "hawaiian": "haw", "hebrew": "iw", "hindi": "hi", "hmong": "hmn", "hungarian": "hu", "icelandic": "is", "igbo": "ig", "ilocano": "ilo", "indonesian": "id", "irish": "ga", "italian": "it", "japanese": "ja", "javanese": "jw", "kannada": "kn", "kazakh": "kk", "khmer": "km", "kinyarwanda": "rw", "konkani": "gom", "korean": "ko", "krio": "kri", "kurdish (kurmanji)": "ku", "kurdish (sorani)": "ckb", "kyrgyz": "ky", "lao": "lo", "latin": "la", "latvian": "lv", "lingala": "ln", "lithuanian": "lt", "luganda": "lg", "luxembourgish": "lb", "macedonian": "mk", "maithili": "mai", "malagasy": "mg", "malay": "ms", "malayalam": "ml", "maltese": "mt", "maori": "mi", "marathi": "mr", "meiteilon (manipuri)": "mni-Mtei", "mizo": "lus", "mongolian": "mn", "myanmar": "my", "nepali": "ne", "norwegian": "no", "odia (oriya)": "or", "oromo": "om", "pashto": "ps", "persian": "fa", "polish": "pl", "portuguese": "pt", "punjabi": "pa", "quechua": "qu", "romanian": "ro", "russian": "ru", "samoan": "sm", "sanskrit": "sa", "scots gaelic": "gd", "sepedi": "nso", "serbian": "sr", "sesotho": "st", "shona": "sn", "sindhi": "sd", "sinhala": "si", "slovak": "sk", "slovenian": "sl", "somali": "so", "spanish": "es", "sundanese": "su", "swahili": "sw", "swedish": "sv", "tajik": "tg", "tamil": "ta", "tatar": "tt", "telugu": "te", "thai": "th", "tigrinya": "ti", "tsonga": "ts", "turkish": "tr", "turkmen": "tk", "twi": "ak", "ukrainian": "uk", "urdu": "ur", "uyghur": "ug", "uzbek": "uz", "vietnamese": "vi", "welsh": "cy", "xhosa": "xh", "yiddish": "yi", "yoruba": "yo", "zulu": "zu"}')
+
 with gr.Blocks(title='World Voice | Translate & Listen', delete_cache=(3600,3600)) as demo:
     portrait_url = 'https://scontent.ffcm1-1.fna.fbcdn.net/v/t39.30808-6/753396728_27583441681305105_5910478644464753336_n.jpg?stp=cp6_dst-jpg_tt6&cstp=mx2047x2048&ctp=s2047x2048&_nc_cat=107&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=6ee11a&_nc_ohc=E5MqxKkaUkYQ7kNvwEKCn42&_nc_oc=Adq9oTGp6hFMXW0SblnE1ZzZXCESobNZuRlaQsP8P5ukhkqPrn7zjRMu_xADziyXvnmpYQM8sf4bOBli0gRs9XtR&_nc_zt=23&_nc_ht=scontent.ffcm1-1.fna&_nc_gid=b8UIftPMnPF2wYyjdwEQsg&_nc_ss=7b2a8&oh=00_AQOA7-2MbLvoAMIF5Mftf-H_OPe8MF63YQSvczt4_-QOSw&oe=6AD75B54'
     with gr.Row(elem_id='top-bar', equal_height=False):
@@ -213,9 +253,11 @@ with gr.Blocks(title='World Voice | Translate & Listen', delete_cache=(3600,3600
     pronunciation = gr.Markdown()
     audio = gr.Audio(label=UI['en'][10], format='mp3', interactive=False)
     status = gr.Markdown()
+    browser_translation = gr.Textbox(visible=False)
     swap.click(swap_with_pronunciation, [source, target, text, result, page_language],
                [source, target, text, result, audio, status, pronunciation], queue=False)
-    submit.click(translate_with_pronunciation, [text,source,target,slow,page_language], [result,audio,status,pronunciation], concurrency_limit=2)
+    submit.click(browser_translation_complete, [text,source,target,slow,page_language,browser_translation],
+                 [result,audio,status,pronunciation], js=BROWSER_TRANSLATE, concurrency_limit=2)
     clear = gr.ClearButton([text,result,audio,status,pronunciation], value=UI['en'][11])
     privacy = gr.Markdown(UI['en'][12])
     page_language.change(change_page_language, page_language,
