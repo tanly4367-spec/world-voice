@@ -118,8 +118,15 @@ NAMES.update({
     'vi': dict(zip(['hmong','english','spanish','french','lao','thai','chinese (simplified)','chinese (traditional)','vietnamese'], ['Tiếng Hmông','Tiếng Anh','Tiếng Tây Ban Nha','Tiếng Pháp','Tiếng Lào','Tiếng Thái','Tiếng Trung (Giản thể)','Tiếng Trung (Phồn thể)','Tiếng Việt'])),
 })
 
+LANGUAGE_HINTS = {
+    'en': 'Select a language', 'hmn': 'Xaiv ib hom lus',
+    'es': 'Selecciona un idioma', 'fr': 'Choisissez une langue',
+    'lo': 'ເລືອກພາສາ', 'th': 'เลือกภาษา',
+    'zh': '请选择语言', 'vi': 'Chọn ngôn ngữ',
+}
+
 def language_choices(locale):
-    return [(NAMES[locale].get(name, name.title()), name) for name in sorted(LANGUAGES)]
+    return [(LANGUAGE_HINTS[locale], '')] + [(NAMES[locale].get(name, name.title()), name) for name in sorted(LANGUAGES)]
 
 def heading(locale):
     t = UI[locale]
@@ -243,9 +250,9 @@ with gr.Blocks(title='World Voice | Translate & Listen', delete_cache=(3600,3600
         page_language = gr.Dropdown(PAGE_LANGUAGES, value='en', label='🌐 Language / Hmoob / Idioma / Langue', scale=1, min_width=220, elem_id='page-language')
     intro = gr.Markdown(heading('en'))
     with gr.Row(elem_id='translation-languages'):
-        source = gr.Dropdown(language_choices('en'), value=None, label=UI['en'][2])
+        source = gr.Dropdown(language_choices('en'), value='', label=UI['en'][2])
         swap = gr.Button('Swap', scale=0, min_width=90)
-        target = gr.Dropdown(language_choices('en'), value=None, label=UI['en'][3])
+        target = gr.Dropdown(language_choices('en'), value='', label=UI['en'][3])
     text = gr.Textbox(label=UI['en'][5], placeholder=UI['en'][6], lines=6, max_length=3000)
     slow = gr.Checkbox(label=UI['en'][7])
     submit = gr.Button(UI['en'][8], variant='primary')
