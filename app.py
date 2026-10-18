@@ -13,21 +13,31 @@ VOICES = tts_langs()
 
 @lru_cache(maxsize=128)
 def translate_segment(text, src, dest):
-    # Translate the complete message; do not use unverified translation-memory matches.
-    response = requests.get(
-        'https://clients5.google.com/translate_a/t',
-        params={'client': 'dict-chrome-ex', 'sl': src, 'tl': dest, 'q': text},
-        timeout=(5, 25))
-    response.raise_for_status()
-    payload = response.json()
-    translated = payload[0] if isinstance(payload, list) and payload else None
-    if not isinstance(translated, str) or not translated.strip():
-        raise ValueError('No valid translation returned.')
-    translated = html.unescape(translated).strip()
-    # Language names and API errors must never be presented as translated messages.
-    if translated.casefold() in {'error', 'null', 'undefined'}:
-        raise ValueError('Invalid translation response.')
-    return translated
+    # Use whole-message machine translation, never shared translation-memory entries.
+    endpoints = [
+        ('https://translate.googleapis.com/translate_a/single', 'gtx'),
+        ('https://clients5.google.com/translate_a/t', 'dict-chrome-ex'),
+    ]
+    for endpoint, client in endpoints:
+        try:
+            params = {'client': client, 'sl': src, 'tl': dest, 'q': text}
+            if client == 'gtx':
+                params['dt'] = 't'
+            response = requests.get(endpoint, params=params, timeout=(5, 20))
+            response.raise_for_status()
+            payload = response.json()
+            if client == 'gtx':
+                translated = ''.join(segment[0] for segment in payload[0] if segment[0])
+            else:
+                translated = payload[0] if isinstance(payload, list) and payload else None
+            if not isinstance(translated, str) or not translated.strip():
+                raise ValueError('Invalid response')
+            return html.unescape(translated).strip()
+        except Exception as error:
+            # Only log the error type/status, never user text or request URLs.
+            code = getattr(getattr(error, 'response', None), 'status_code', None)
+            print('Translation endpoint:', client, type(error).__name__, code, flush=True)
+    raise ValueError('Translation providers unavailable')
 
 
 def chunks(text):
